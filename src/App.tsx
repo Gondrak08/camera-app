@@ -1,41 +1,47 @@
 import { useState, useRef } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
-   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [stream, setStream] = useState(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [videoBlob, setVideoBlob] = useState(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
 
-  const startCamera = async () => {
+  const startCamera = async (): Promise<void> => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
-      setStream(stream);
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setStream(mediaStream);
     } catch (err) {
       console.error("Error accessing camera: ", err);
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = (): void => {
+    if (!videoRef.current || !canvasRef.current) return;
+
     const canvas = canvasRef.current;
     const video = videoRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    canvas.toBlob(uploadPhoto, 'image/jpeg');
+
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) uploadPhoto(blob);
+      }, 'image/jpeg');
+    }
   };
 
-  const uploadPhoto = async (blob) => {
+  const uploadPhoto = async (blob: Blob): Promise<void> => {
     const formData = new FormData();
     formData.append('photo', blob, 'photo.jpg');
-    
+
     try {
       await fetch('YOUR_API_ENDPOINT_FOR_PHOTO', {
         method: 'POST',
@@ -47,27 +53,33 @@ function App() {
     }
   };
 
-  const startRecording = () => {
+  const startRecording = (): void => {
+    if (!stream) return;
+
     const recorder = new MediaRecorder(stream);
     setMediaRecorder(recorder);
 
-    recorder.ondataavailable = (event) => {
+    recorder.ondataavailable = (event: BlobEvent) => {
       setVideoBlob(event.data);
     };
-    
+
     recorder.start();
     setIsRecording(true);
   };
 
-  const stopRecording = () => {
-    mediaRecorder.stop();
-    setIsRecording(false);
+  const stopRecording = (): void => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
   };
 
-  const uploadVideo = async () => {
+  const uploadVideo = async (): Promise<void> => {
+    if (!videoBlob) return;
+
     const formData = new FormData();
     formData.append('video', videoBlob, 'video.mp4');
-    
+
     try {
       await fetch('YOUR_API_ENDPOINT_FOR_VIDEO', {
         method: 'POST',
@@ -93,6 +105,7 @@ function App() {
       )}
       <button onClick={uploadVideo} disabled={!videoBlob}>Upload Video</button>
     </div>
-  );}
+  );
+}
 
 export default App
